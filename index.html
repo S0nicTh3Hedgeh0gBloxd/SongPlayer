@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Music Player</title>
+        <style>
+            :root {
+                --overlay-bg: rgba(0, 0, 0, 0.45);
+                --accent: #ffdd57;
+            }
+            html,
+            body {
+                height: 100%;
+                margin: 0;
+                font-family:
+                    Inter,
+                    system-ui,
+                    Segoe UI,
+                    Roboto,
+                    "Helvetica Neue",
+                    Arial;
+            }
+            .bg {
+                position: fixed;
+                inset: 0;
+                background-size: cover;
+                background-position: center;
+                background-repeat: no-repeat;
+                filter: blur(0.25px) saturate(1.05) contrast(1.02);
+                transition: background-image 0.8s ease-in-out;
+            }
+            .overlay {
+                position: fixed;
+                inset: 0;
+                background: linear-gradient(180deg, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.55));
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 24px;
+            }
+            .card {
+                backdrop-filter: blur(6px) saturate(1.1);
+                background: var(--overlay-bg);
+                color: white;
+                padding: 18px;
+                border-radius: 12px;
+                box-shadow: 0 6px 30px rgba(0, 0, 0, 0.6);
+                max-width: 460px;
+                width: 100%;
+                text-align: center;
+                transition: opacity 0.6s ease-in-out;
+            }
+            p {
+                margin: 0 0 14px 0;
+                font-size: 13px;
+                opacity: 0.9;
+            }
+            .controls {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                align-items: center;
+                justify-content: center;
+            }
+            button {
+                background: transparent;
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                color: white;
+                padding: 8px 12px;
+                border-radius: 8px;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            button:active {
+                transform: translateY(1px);
+            }
+            .big-play {
+                width: 56px;
+                height: 56px;
+                border-radius: 999px;
+                display: grid;
+                place-items: center;
+                border-width: 2px;
+                margin-bottom: 10px;
+            }
+            input[type="range"] {
+                width: 200px;
+            }
+            select {
+                background: rgba(255, 255, 255, 0.9);
+                color: black;
+                border: 1px solid rgba(0, 0, 0, 0.2);
+                border-radius: 6px;
+                padding: 4px 8px;
+            }
+            .small {
+                font-size: 12px;
+                opacity: 0.9;
+            }
+            .credit {
+                margin-top: 12px;
+                font-size: 11px;
+                opacity: 0.8;
+            }
+            .arrows {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 10px;
+                font-size: 22px;
+                user-select: none;
+            }
+            .arrow {
+                cursor: pointer;
+                transition: transform 0.2s ease;
+            }
+            .arrow:hover {
+                transform: scale(1.2);
+            }
+
+            /* === Popup Styles (Scrollable) === */
+            #menuPopup {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.7);
+                display: none;
+                align-items: center;
+                justify-content: center;
+                z-index: 20;
+                padding: 20px;
+            }
+            #menuPopup .popup-content {
+                background: var(--overlay-bg);
+                color: white;
+                padding: 20px;
+                border-radius: 12px;
+                max-width: 420px;
+                width: 100%;
+                max-height: 80vh; /* Limit height */
+                overflow-y: auto; /* Scroll inside */
+                box-sizing: border-box;
+            }
+            #menuPopup input {
+                width: 100%;
+                margin-bottom: 10px;
+                padding: 6px;
+                border-radius: 6px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                background: rgba(255, 255, 255, 0.1);
+                color: white;
+            }
+            .small-note {
+                font-size: 11px;
+                opacity: 0.8;
+                margin-bottom: 8px;
+            }
+            /* Scrollable song list */
+            #songList {
+                max-height: 160px;
+                overflow-y: auto;
+                padding-right: 6px;
+            }
+            #songList::-webkit-scrollbar {
+                width: 6px;
+            }
+            #songList::-webkit-scrollbar-thumb {
+                background: rgba(255, 255, 255, 0.3);
+                border-radius: 4px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="bg"></div>
+        <div class="overlay">
+            <div class="card">
+                <div class="arrows">
+                    <div class="arrow" id="prev">⟵</div>
+                    <div id="songTitle">FAMICOMICIDE — Forsaken OST</div>
+                    <div class="arrow" id="next">⟶</div>
+                </div>
+                <div style="margin-bottom: 10px">
+                    <label for="songSelect" class="small">Select Song:</label>
+                    <select id="songSelect"></select>
+                    <button id="openMenu">＋ Manage Songs</button>
+                </div>
+                <p class="small" id="songDesc"></p>
+                <div class="controls">
+                    <button id="playBtn" class="big-play">▶</button>
+                    <div style="display: flex; gap: 8px; align-items: center">
+                        <label for="seek" class="small">Time</label>
+                        <input id="seek" type="range" min="0" max="100" step="0.01" value="0" />
+                    </div>
+                    <div class="small" id="timeDisplay">0:00 / 0:00</div>
+                    <div style="display: flex; gap: 8px; align-items: center; margin-top: 10px">
+                        <label for="volume" class="small">Vol</label>
+                        <input id="volume" type="range" min="0" max="1" step="0.01" value="0.7" />
+                        <button id="muteBtn">Mute</button>
+                        <button id="loopBtn">Loop: <span id="loopState">On</span></button>
+                    </div>
+                    <div style="display: flex; gap: 6px; align-items: center; margin-top: 8px">
+                        <label for="loopStartOffset" class="small">Loop start offset (s)</label>
+                        <input id="loopStartOffset" type="number" min="0" step="0.01" value="0" style="width: 60px" />
+                    </div>
+                    <div style="display: flex; gap: 6px; align-items: center; margin-top: 4px">
+                        <label for="loopOffset" class="small">Loop end offset (s)</label>
+                        <input id="loopOffset" type="number" min="0" step="0.01" value="0" style="width: 60px" />
+                    </div>
+                </div>
+                <div class="credit" id="credit">Credits: Vlad - FAMICOMICIDE OST</div>
+            </div>
+        </div>
+
+        <div id="menuPopup">
+            <div class="popup-content">
+                <h3>Manage Songs</h3>
+                <div id="songList"></div>
+                <hr style="margin: 10px 0; opacity: 0.4" />
+                <h4>Add or Edit Song</h4>
+                <div class="small-note">
+                    You can paste URLs into the fields below or upload files from your device (MP3s/images). Uploaded
+                    files are saved as data-URLs.
+                </div>
+                <input id="newTitle" placeholder="Song Title" />
+                <input id="newDesc" placeholder="Description / Credits" />
+                <div style="display: flex; gap: 6px; align-items: center">
+                    <input id="newSrc" placeholder="Audio URL or uploaded file" style="flex: 1" />
+                    <button id="uploadAudioBtn">Upload Audio</button>
+                </div>
+                <div style="display: flex; gap: 6px; align-items: center">
+                    <input id="newBg" placeholder="Background Image URL or uploaded file" style="flex: 1" />
+                    <button id="uploadImageBtn">Upload Image</button>
+                </div>
+                <input id="newLoopStart" placeholder="Loop Start Offset (s)" type="number" min="0" step="0.01" />
+                <input id="newLoopEnd" placeholder="Loop End Offset (s)" type="number" min="0" step="0.01" />
+                <div style="display: flex; gap: 6px; justify-content: space-between; flex-wrap: wrap">
+                    <button id="saveSong">Save</button>
+                    <button id="exportBtn">Export All</button>
+                    <button id="importBtn">Import</button>
+                    <button id="closeMenu">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <audio id="bgAudio" preload="auto" crossorigin="anonymous"></audio>
+        <script>
+            let songs = [
+                {
+                    title: "FAMICOMICIDE — Forsaken OST",
+                    desc: "",
+                    credit: "Credits: Vlad - FAMICOMICIDE OST",
+                    src: "https://static.wikia.nocookie.net/forsaken2024/images/0/01/FAMICOMICIDE_Chase.mp3/revision/latest?cb=20251101173749",
+                    bg: "https://i.redd.it/kdji3zrdvimf1.png",
+                    loopStart: 0,
+                    loopEnd: 0,
+                },
+            ];
+            const audio = document.getElementById("bgAudio"),
+                playBtn = document.getElementById("playBtn"),
+                volume = document.getElementById("volume"),
+                muteBtn = document.getElementById("muteBtn"),
+                loopBtn = document.getElementById("loopBtn"),
+                loopState = document.getElementById("loopState"),
+                seek = document.getElementById("seek"),
+                timeDisplay = document.getElementById("timeDisplay"),
+                loopOffsetInput = document.getElementById("loopOffset"),
+                loopStartOffsetInput = document.getElementById("loopStartOffset"),
+                title = document.getElementById("songTitle"),
+                desc = document.getElementById("songDesc"),
+                credit = document.getElementById("credit"),
+                bg = document.querySelector(".bg"),
+                prevBtn = document.getElementById("prev"),
+                nextBtn = document.getElementById("next"),
+                songSelect = document.getElementById("songSelect"),
+                openMenu = document.getElementById("openMenu"),
+                menuPopup = document.getElementById("menuPopup"),
+                saveSong = document.getElementById("saveSong"),
+                closeMenu = document.getElementById("closeMenu"),
+                exportBtn = document.getElementById("exportBtn"),
+                importBtn = document.getElementById("importBtn"),
+                newTitle = document.getElementById("newTitle"),
+                newDesc = document.getElementById("newDesc"),
+                newSrc = document.getElementById("newSrc"),
+                newBg = document.getElementById("newBg"),
+                newLoopStart = document.getElementById("newLoopStart"),
+                newLoopEnd = document.getElementById("newLoopEnd"),
+                songList = document.getElementById("songList"),
+                uploadAudioBtn = document.getElementById("uploadAudioBtn"),
+                uploadImageBtn = document.getElementById("uploadImageBtn");
+            let index = 0,
+                isPlaying = false,
+                durationKnown = false,
+                editIndex = null;
+            seek.dragging = false;
+            audio.loop = false;
+            function populateSelect() {
+                songSelect.innerHTML = "";
+                songs.forEach((s, i) => {
+                    const o = document.createElement("option");
+                    o.value = i;
+                    o.textContent = s.title;
+                    songSelect.appendChild(o);
+                });
+            }
+            function renderSongList() {
+                songList.innerHTML = "";
+                songs.forEach((s, i) => {
+                    const d = document.createElement("div");
+                    d.style.display = "flex";
+                    d.style.justifyContent = "space-between";
+                    d.style.marginBottom = "6px";
+                    d.innerHTML = `<span>${s.title}</span><div><button onclick="editSong(${i})">✎</button><button onclick="deleteSong(${i})">🗑</button></div>`;
+                    songList.appendChild(d);
+                });
+            }
+            function loadSong(i) {
+                try {
+                    const s = songs[i];
+                    if (!s) throw new Error("Invalid song index");
+                    title.textContent = s.title;
+                    desc.textContent = s.desc || "";
+                    credit.textContent = s.credit || "";
+                    bg.style.backgroundImage = `url(${s.bg || ""})`;
+                    audio.src = s.src;
+                    audio.currentTime = s.loopStart || 0;
+                    loopStartOffsetInput.value = s.loopStart || 0;
+                    loopOffsetInput.value = s.loopEnd || 0;
+                    songSelect.value = i;
+                    if (isPlaying) audio.play();
+                    localStorage.setItem("forsakenIndex", i);
+                } catch (e) {
+                    alert("Error loading song: " + e.message);
+                }
+            }
+            function updatePlayUI() {
+                playBtn.textContent = isPlaying ? "▮▮" : "▶";
+            }
+            audio.addEventListener("timeupdate", () => {
+                const ls = parseFloat(loopStartOffsetInput.value) || 0,
+                    le = parseFloat(loopOffsetInput.value) || 0;
+                if (audio.loop && durationKnown && audio.currentTime >= audio.duration - le) {
+                    audio.currentTime = ls;
+                    audio.play();
+                }
+                if (!seek.dragging) seek.value = audio.currentTime;
+                updateTimeDisplay();
+            });
+            playBtn.addEventListener("click", () => {
+                if (audio.paused) {
+                    audio
+                        .play()
+                        .then(() => {
+                            isPlaying = true;
+                            updatePlayUI();
+                        })
+                        .catch(() => alert("Playback blocked. Click again to start."));
+                } else {
+                    audio.pause();
+                    isPlaying = false;
+                    updatePlayUI();
+                }
+            });
+            audio.addEventListener("loadedmetadata", () => {
+                durationKnown = true;
+                seek.max = audio.duration;
+                updateTimeDisplay();
+            });
+            seek.addEventListener("input", updateTimeDisplay);
+            seek.addEventListener("pointerdown", () => {
+                seek.dragging = true;
+            });
+            seek.addEventListener("pointerup", () => {
+                seek.dragging = false;
+                audio.currentTime = parseFloat(seek.value);
+            });
+            function updateTimeDisplay() {
+                const c = formatTime(audio.currentTime || 0),
+                    t = durationKnown ? formatTime(audio.duration) : "0:00";
+                timeDisplay.textContent = `${c} / ${t}`;
+            }
+            function formatTime(t) {
+                const m = Math.floor(t / 60),
+                    s = Math.floor(t % 60)
+                        .toString()
+                        .padStart(2, "0");
+                return `${m}:${s}`;
+            }
+            volume.addEventListener("input", () => {
+                audio.volume = parseFloat(volume.value);
+                audio.muted = audio.volume === 0;
+                muteBtn.textContent = audio.muted ? "Muted" : "Mute";
+            });
+            muteBtn.addEventListener("click", () => {
+                audio.muted = !audio.muted;
+                muteBtn.textContent = audio.muted ? "Muted" : "Mute";
+                if (!audio.muted && audio.volume === 0) {
+                    audio.volume = 0.7;
+                    volume.value = 0.7;
+                }
+            });
+            loopBtn.addEventListener("click", () => {
+                audio.loop = !audio.loop;
+                loopState.textContent = audio.loop ? "On" : "Off";
+            });
+            prevBtn.addEventListener("click", () => {
+                index = (index - 1 + songs.length) % songs.length;
+                transition();
+            });
+            nextBtn.addEventListener("click", () => {
+                index = (index + 1) % songs.length;
+                transition();
+            });
+            function transition() {
+                const c = document.querySelector(".card");
+                c.style.opacity = "0";
+                setTimeout(() => {
+                    loadSong(index);
+                    c.style.opacity = "1";
+                }, 400);
+            }
+            songSelect.addEventListener("change", () => {
+                index = parseInt(songSelect.value);
+                transition();
+            });
+            audio.addEventListener("play", () => {
+                isPlaying = true;
+                updatePlayUI();
+            });
+            audio.addEventListener("pause", () => {
+                isPlaying = false;
+                updatePlayUI();
+            });
+            openMenu.addEventListener("click", () => {
+                menuPopup.style.display = "flex";
+                renderSongList();
+            });
+            closeMenu.addEventListener("click", () => {
+                menuPopup.style.display = "none";
+                editIndex = null;
+            });
+            saveSong.addEventListener("click", () => {
+                try {
+                    const t = newTitle.value.trim(),
+                        d = newDesc.value.trim(),
+                        s = newSrc.value.trim(),
+                        b = newBg.value.trim(),
+                        ls = parseFloat(newLoopStart.value) || 0,
+                        le = parseFloat(newLoopEnd.value) || 0;
+                    if (!t || !s) return alert("Please fill at least title and song URL (or upload a file)");
+                    const obj = {
+                        title: t,
+                        desc: d,
+                        credit: d ? "Credits: " + d : "",
+                        src: s,
+                        bg: b || "",
+                        loopStart: ls,
+                        loopEnd: le,
+                    };
+                    editIndex !== null ? (songs[editIndex] = obj) : songs.push(obj);
+                    populateSelect();
+                    renderSongList();
+                    menuPopup.style.display = "none";
+                    newTitle.value =
+                        newDesc.value =
+                        newSrc.value =
+                        newBg.value =
+                        newLoopStart.value =
+                        newLoopEnd.value =
+                            "";
+                    localStorage.setItem("forsakenSongs", JSON.stringify(songs));
+                    if (editIndex === null) {
+                        index = songs.length - 1;
+                        loadSong(index);
+                    } else {
+                        loadSong(editIndex);
+                    }
+                    editIndex = null;
+                } catch (e) {
+                    alert("Error saving song: " + e.message);
+                }
+            });
+            function editSong(i) {
+                const s = songs[i];
+                newTitle.value = s.title;
+                newDesc.value = s.desc;
+                newSrc.value = s.src;
+                newBg.value = s.bg;
+                newLoopStart.value = s.loopStart || 0;
+                newLoopEnd.value = s.loopEnd || 0;
+                editIndex = i;
+                menuPopup.style.display = "flex";
+            }
+            function deleteSong(i) {
+                if (songs.length <= 1) return alert("Cannot delete last song.");
+                if (confirm("Delete this song?")) {
+                    songs.splice(i, 1);
+                    populateSelect();
+                    renderSongList();
+                    localStorage.setItem("forsakenSongs", JSON.stringify(songs));
+                    if (index >= songs.length) index = 0;
+                    loadSong(index);
+                }
+            }
+            exportBtn.addEventListener("click", () => {
+                const d = JSON.stringify(songs, null, 2),
+                    b = new Blob([d], { type: "application/json" }),
+                    u = URL.createObjectURL(b),
+                    a = document.createElement("a");
+                a.href = u;
+                a.download = "songs.json";
+                a.click();
+                URL.revokeObjectURL(u);
+            });
+            importBtn.addEventListener("click", () => {
+                const i = document.createElement("input");
+                i.type = "file";
+                i.accept = ".json";
+                i.onchange = (e) => {
+                    const f = e.target.files[0];
+                    if (!f) return;
+                    const r = new FileReader();
+                    r.onload = () => {
+                        try {
+                            const im = JSON.parse(r.result);
+                            if (!Array.isArray(im)) throw new Error("Invalid file");
+                            songs = im;
+                            populateSelect();
+                            renderSongList();
+                            localStorage.setItem("forsakenSongs", JSON.stringify(songs));
+                            loadSong(0);
+                        } catch (er) {
+                            alert("Import failed: " + er.message);
+                        }
+                    };
+                    r.readAsText(f);
+                };
+                i.click();
+            });
+            function readFileAsDataURL(file) {
+                return new Promise((res, rej) => {
+                    const r = new FileReader();
+                    r.onerror = () => rej(new Error("File read error"));
+                    r.onload = () => res(r.result);
+                    r.readAsDataURL(file);
+                });
+            }
+            uploadAudioBtn.addEventListener("click", async () => {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = "audio/*";
+                input.onchange = async (e) => {
+                    const f = e.target.files && e.target.files[0];
+                    if (!f) return;
+                    if (f.size > 50 * 1024 * 1024 && !confirm("File is larger than 50MB — continue?")) return;
+                    try {
+                        const dataUrl = await readFileAsDataURL(f);
+                        newSrc.value = dataUrl;
+                        uploadAudioBtn.textContent = "Audio loaded ✓";
+                        setTimeout(() => (uploadAudioBtn.textContent = "Upload Audio"), 1500);
+                    } catch (err) {
+                        alert("Failed to load audio: " + err.message);
+                    }
+                };
+                input.click();
+            });
+            uploadImageBtn.addEventListener("click", async () => {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = "image/*";
+                input.onchange = async (e) => {
+                    const f = e.target.files && e.target.files[0];
+                    if (!f) return;
+                    if (f.size > 10 * 1024 * 1024 && !confirm("Image is larger than 10MB — continue?")) return;
+                    try {
+                        const dataUrl = await readFileAsDataURL(f);
+                        newBg.value = dataUrl;
+                        uploadImageBtn.textContent = "Image loaded ✓";
+                        setTimeout(() => (uploadImageBtn.textContent = "Upload Image"), 1500);
+                    } catch (err) {
+                        alert("Failed to load image: " + err.message);
+                    }
+                };
+                input.click();
+            });
+            window.addEventListener("keydown", (e) => {
+                if (e.code === "Space" && document.activeElement.tagName !== "INPUT") {
+                    e.preventDefault();
+                    playBtn.click();
+                }
+                if (e.code === "ArrowRight") nextBtn.click();
+                if (e.code === "ArrowLeft") prevBtn.click();
+            });
+            const savedSongs = localStorage.getItem("forsakenSongs");
+            if (savedSongs)
+                try {
+                    songs = JSON.parse(savedSongs);
+                } catch {}
+            const savedIndex = parseInt(localStorage.getItem("forsakenIndex"));
+            if (!isNaN(savedIndex)) index = savedIndex;
+            populateSelect();
+            loadSong(index);
+        </script>
+    </body>
+</html>
